@@ -30,6 +30,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveAltIcon from "@mui/icons-material/SaveAlt";
 import InventoryIcon from "@mui/icons-material/Inventory";
+import Dashboard from "./Dashboard";
 
 const TEACHABLE_MODEL_URL = "/teachable/";
 const TARGET_LABELS = [
@@ -269,7 +270,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ m: 0, width: '98vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ m: 0, width: '98vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', mb:25 }}>
         <CssBaseline />
         <AppBar color="primary" sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Toolbar sx={{ gap: 10 }}>
@@ -313,6 +314,7 @@ export default function App() {
                 borderEndEndRadius:0,
                 borderEndStartRadius:0,
                 bgcolor: "background.paper",
+                mt:4
               }}
             >
               {Object.entries(stock).map(([key, value]) => (
@@ -363,13 +365,13 @@ export default function App() {
               ))}
             </Box>
           </Box>
-
-          <Stack direction={{ xs: "column", md: "row" }} spacing={3} >
+<Box sx={{mt:4}}></Box>
+          <Stack direction={{ xs: "column", md: "row",  }} spacing={3} >
             {/* Câmera */}
-            <Card sx={{ width: '50%' }}>
+            <Card sx={{ width: '60%', minHeight:'50vh' }}>
               <CardContent sx={{ p: 0 }}>
                 <video ref={videoRef} style={{ width: "100%", borderRadius: 12 }} playsInline muted />
-                <canvas ref={overlayRef} style={{ inset: 0, pointerEvents: "none" }} />
+                {/* <canvas ref={overlayRef} style={{ inset: 0, pointerEvents: "none" }} /> */}
               </CardContent>
             </Card>
 
@@ -433,7 +435,7 @@ export default function App() {
           <DialogContent>
             {pending && (
               <>
-                <Typography variant="body1" gutterBottom>
+                <Typography variant="h6" sx={{textAlign:'center'}} gutterBottom>
                   Rótulo: <strong>{pending.label}</strong> — confiança {(pending.score * 100).toFixed(1)}%
                 </Typography>
                 <img src={pending.image} alt="snapshot" style={{ width: "100%", borderRadius: 8, marginTop: 8 }} />
@@ -496,6 +498,7 @@ export default function App() {
           </Alert>
         </Snackbar>
       </Box>
+      <Dashboard/>
     </ThemeProvider>
   );
 }
