@@ -202,6 +202,9 @@ export default function App() {
     }
   });
 
+  // NOVO: quantidade a confirmar (opcional)
+  const [confirmQty, setConfirmQty] = useState("");
+
   // Estado do estoque
   const [stock, setStock] = useState(() => {
     try {
@@ -329,6 +332,7 @@ export default function App() {
         ) {
           const snapshot = takeSnapshot();
           setPending({ label, score: prob, image: snapshot });
+          setConfirmQty(""); // resetar campo de quantidade quando abrir
           setModalOpen(true);
         }
       } catch (e) {
@@ -354,9 +358,13 @@ export default function App() {
     if (!pending) return;
     const label = pending.label.toLowerCase();
 
-    if (stock[label] && stock[label] > 0) {
-      // dá baixa
-      const updatedStock = { ...stock, [label]: stock[label] - 1 };
+    // Quantidade: se vazio/invalid, usa 1
+    let qty = parseInt(confirmQty, 10);
+    if (isNaN(qty) || qty <= 0) qty = 1;
+
+    if (stock[label] && stock[label] >= qty) {
+      // dá baixa com a quantidade solicitada
+      const updatedStock = { ...stock, [label]: stock[label] - qty };
       setStock(updatedStock);
       localStorage.setItem("stock", JSON.stringify(updatedStock));
 
@@ -369,7 +377,10 @@ export default function App() {
       const next = [item, ...saved];
       setSaved(next);
       localStorage.setItem("savedDetections", JSON.stringify(next));
-      setSnackbar({ open: true, message: `✅ Baixa registrada no estoque de ${label}`, type: "success" });
+      setSnackbar({ open: true, message: `✅ Baixa de ${qty} unidade(s) registrada no estoque de ${label}`, type: "success" });
+      setConfirmQty("");
+    } else if (stock[label] && stock[label] > 0 && stock[label] < qty) {
+      setSnackbar({ open: true, message: `❌ Quantidade solicitada (${qty}) maior que o estoque disponível (${stock[label]}).`, type: "error" });
     } else {
       setSnackbar({ open: true, message: `❌ Sem estoque disponível de ${label}`, type: "error" });
     }
@@ -381,6 +392,7 @@ export default function App() {
   function cancelPending() {
     setPending(null);
     setModalOpen(false);
+    setConfirmQty("");
   }
 
   function clearSaved() {
@@ -787,9 +799,20 @@ export default function App() {
                 <Typography variant="h6" gutterBottom>
                   Confirmar detecção de <strong style={{ textTransform: "capitalize" }}>{pending.label}</strong>?
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Esta ação registrará uma baixa no estoque automaticamente.
                 </Typography>
+                {/* NOVO: campo para quantidade opcional */}
+                <TextField
+                  label="Quantidade (opcional)"
+                  type="number"
+                  value={confirmQty}
+                  onChange={(e) => setConfirmQty(e.target.value)}
+                  fullWidth
+                  inputProps={{ min: 1 }}
+                  helperText="Se deixar em branco, será descontado 1 unidade."
+                  sx={{ mt: 1 }}
+                />
               </Box>
               <img 
                 src={pending.image} 
