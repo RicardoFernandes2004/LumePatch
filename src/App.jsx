@@ -118,21 +118,20 @@ const StockCard = ({ itemName, quantity, onAddStock }) => {
   const isOutOfStock = quantity === 0;
 
   return (
-    <Card 
-      sx={{ 
+    <Card
+      sx={{
         height: 120,
-        background: isOutOfStock 
+        background: isOutOfStock
           ? `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`
           : isLowStock
-          ? `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`
-          : `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
-        border: `2px solid ${
-          isOutOfStock 
-            ? alpha(theme.palette.error.main, 0.3)
-            : isLowStock
+            ? `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`
+            : `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
+        border: `2px solid ${isOutOfStock
+          ? alpha(theme.palette.error.main, 0.3)
+          : isLowStock
             ? alpha(theme.palette.warning.main, 0.3)
             : alpha(theme.palette.success.main, 0.3)
-        }`,
+          }`,
         transition: "all 0.3s ease",
         "&:hover": {
           transform: "translateY(-4px)",
@@ -145,9 +144,9 @@ const StockCard = ({ itemName, quantity, onAddStock }) => {
       }}
     >
       <Box>
-        <Typography 
-          variant="subtitle2" 
-          sx={{ 
+        <Typography
+          variant="subtitle2"
+          sx={{
             fontWeight: 600,
             color: isOutOfStock ? "error.main" : "text.primary",
             textTransform: "capitalize",
@@ -159,10 +158,10 @@ const StockCard = ({ itemName, quantity, onAddStock }) => {
         <StockLevelIndicator quantity={quantity} />
       </Box>
       <Tooltip title={`Adicionar estoque para ${itemName}`}>
-        <IconButton 
-          size="small" 
+        <IconButton
+          size="small"
           onClick={() => onAddStock(itemName)}
-          sx={{ 
+          sx={{
             alignSelf: "flex-end",
             bgcolor: "primary.main",
             color: "white",
@@ -249,6 +248,8 @@ export default function App() {
 
   const [snackbar, setSnackbar] = useState({ open: false, message: "", type: "success" });
 
+
+  
   useEffect(() => {
     start();
     return () => stop();
@@ -318,7 +319,7 @@ export default function App() {
           ctx.font = "bold 20px sans-serif";
           ctx.fillStyle = prob > TEACHABLE_PROB_THRESHOLD ? "#4caf50" : "#ff9800";
           ctx.fillText(`${label} ${(prob * 100).toFixed(1)}%`, 20, 40);
-          
+
           // Adicionar borda de detecção
           ctx.strokeStyle = prob > TEACHABLE_PROB_THRESHOLD ? "#4caf50" : "#ff9800";
           ctx.lineWidth = 3;
@@ -362,6 +363,13 @@ export default function App() {
     let qty = parseInt(confirmQty, 10);
     if (isNaN(qty) || qty <= 0) qty = 1;
 
+    // Fechar modal independente do resultado
+    const closeModal = () => {
+      setPending(null);
+      setModalOpen(false);
+      setConfirmQty("");
+    };
+
     if (stock[label] && stock[label] >= qty) {
       // dá baixa com a quantidade solicitada
       const updatedStock = { ...stock, [label]: stock[label] - qty };
@@ -373,20 +381,20 @@ export default function App() {
         score: pending.score,
         image: pending.image,
         ts: new Date().toISOString(),
+        quantity: qty // Adicionar quantidade ao histórico
       };
       const next = [item, ...saved];
       setSaved(next);
       localStorage.setItem("savedDetections", JSON.stringify(next));
       setSnackbar({ open: true, message: `✅ Baixa de ${qty} unidade(s) registrada no estoque de ${label}`, type: "success" });
-      setConfirmQty("");
+      closeModal();
     } else if (stock[label] && stock[label] > 0 && stock[label] < qty) {
       setSnackbar({ open: true, message: `❌ Quantidade solicitada (${qty}) maior que o estoque disponível (${stock[label]}).`, type: "error" });
+      closeModal(); // Fechar mesmo com erro
     } else {
       setSnackbar({ open: true, message: `❌ Sem estoque disponível de ${label}`, type: "error" });
+      closeModal(); // Fechar mesmo com erro
     }
-
-    setPending(null);
-    setModalOpen(false);
   }
 
   function cancelPending() {
@@ -425,15 +433,15 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      
+
       {/* Header */}
-      <AppBar 
-        position="static" 
+      <AppBar
+        position="static"
         elevation={2}
-        sx={{ 
+        sx={{
           background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
           mb: 4,
-          width:'98vw'
+          width: '98vw'
         }}
       >
         <Toolbar>
@@ -441,13 +449,13 @@ export default function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
             Sistema de Controle Hospitalar
           </Typography>
-          
+
           <Stack direction="row" spacing={2}>
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               startIcon={<InventoryIcon />}
               onClick={() => setActiveTab(1)}
-              sx={{ 
+              sx={{
                 borderRadius: 2,
                 px: 3,
                 "&:hover": { backgroundColor: alpha("#fff", 0.1) }
@@ -455,11 +463,11 @@ export default function App() {
             >
               Estoque
             </Button>
-            <Button 
-              color="inherit" 
+            <Button
+              color="inherit"
               startIcon={<AnalyticsIcon />}
               onClick={() => setActiveTab(2)}
-              sx={{ 
+              sx={{
                 borderRadius: 2,
                 px: 3,
                 "&:hover": { backgroundColor: alpha("#fff", 0.1) }
@@ -473,19 +481,21 @@ export default function App() {
 
       <Container maxWidth="xl" sx={{ mb: 8 }}>
         {/* Indicadores de status */}
-        <Grid container spacing={3} sx={{ mb: 4, display:'flex',
-              alignItems:'center',
-              justifyContent:'center',
-              width:'100%',}}>
+        <Grid container spacing={3} sx={{
+          mb: 4, display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+        }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper 
+            <Paper
               elevation={2}
-              sx={{ 
-                p: 3, 
+              sx={{
+                p: 3,
                 textAlign: "center",
                 background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                
+
               }}
             >
               <Typography variant="h4" color="primary" fontWeight="bold">
@@ -497,10 +507,10 @@ export default function App() {
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3} >
-            <Paper 
+            <Paper
               elevation={2}
-              sx={{ 
-                p: 3, 
+              sx={{
+                p: 3,
                 textAlign: "center",
                 background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`,
                 border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
@@ -515,10 +525,10 @@ export default function App() {
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper 
+            <Paper
               elevation={2}
-              sx={{ 
-                p: 3, 
+              sx={{
+                p: 3,
                 textAlign: "center",
                 background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
                 border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
@@ -533,10 +543,10 @@ export default function App() {
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper 
+            <Paper
               elevation={2}
-              sx={{ 
-                p: 3, 
+              sx={{
+                p: 3,
                 textAlign: "center",
                 background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
                 border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
@@ -554,14 +564,14 @@ export default function App() {
 
         {/* Abas principais */}
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: "hidden" }}>
-          <Tabs 
-            value={activeTab} 
+          <Tabs
+            value={activeTab}
             onChange={(_, newValue) => setActiveTab(newValue)}
             variant="fullWidth"
             sx={{
               background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
               "& .MuiTab-root": { fontWeight: 600, py: 2 },
-             
+
             }}
           >
             <Tab icon={<CameraAltIcon />} label="Detecção em Tempo Real" />
@@ -573,32 +583,32 @@ export default function App() {
 
           {/* Tab 1: Detecção em Tempo Real */}
           <TabPanel value={activeTab} index={0}>
-            <Grid container spacing={4}>
-              <Grid item xs={12} lg={8}>
-                <Card elevation={3} sx={{ borderRadius: 3, overflow: "hidden", width: "100%"  }}>
+            <Grid container spacing={4} sx={{ width: '100%', margin: 0 }}>
+              <Grid item xs={12} lg={8} sx={{ width: '50%' }}>
+                <Card elevation={3} sx={{ borderRadius: 3, overflow: "hidden", width: "100%" }}>
                   <CardContent sx={{ p: 0, position: "relative" }}>
                     <Box sx={{ position: "relative" }}>
-                      <video 
-                        ref={videoRef} 
-                        style={{ 
-                          width: "100%", 
+                      <video
+                        ref={videoRef}
+                        style={{
+                          width: "100%",
                           height: "400px",
                           objectFit: "cover",
                           display: "block"
-                        }} 
-                        playsInline 
-                        muted 
+                        }}
+                        playsInline
+                        muted
                       />
-                      <canvas 
-                        ref={overlayRef} 
-                        style={{ 
-                          position: "absolute", 
-                          top: 0, 
-                          left: 0, 
-                          width: "100%", 
+                      <canvas
+                        ref={overlayRef}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
                           height: "100%",
                           pointerEvents: "none",
-                        }} 
+                        }}
                       />
                       <Box
                         sx={{
@@ -622,7 +632,7 @@ export default function App() {
                 </Card>
               </Grid>
 
-              <Grid item xs={12} lg={4}>
+              <Grid item xs={12} lg={8} sx={{ width: '47%' }} >
                 <Card elevation={3} sx={{ borderRadius: 3, height: "100%" }}>
                   <CardContent>
                     <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
@@ -631,7 +641,7 @@ export default function App() {
                         Histórico de Detecções
                       </Typography>
                     </Box>
-                    
+
                     {saved.length === 0 ? (
                       <Box sx={{ textAlign: "center", py: 4 }}>
                         <CameraAltIcon sx={{ fontSize: 48, color: "text.secondary", mb: 2 }} />
@@ -647,9 +657,9 @@ export default function App() {
                         {saved.map((s, i) => (
                           <ListItem key={i} divider>
                             <ListItemAvatar>
-                              <Avatar 
-                                variant="rounded" 
-                                src={s.image} 
+                              <Avatar
+                                variant="rounded"
+                                src={s.image}
                                 alt={s.label}
                                 sx={{ width: 60, height: 45 }}
                               />
@@ -665,9 +675,9 @@ export default function App() {
                                   <Typography variant="body2" color="text.secondary">
                                     {new Date(s.ts).toLocaleString()}
                                   </Typography>
-                                  <Chip 
-                                    label={`${(s.score * 100).toFixed(1)}%`} 
-                                    size="small" 
+                                  <Chip
+                                    label={`${(s.score * 100).toFixed(1)}%`}
+                                    size="small"
                                     color="primary"
                                     variant="outlined"
                                   />
@@ -680,10 +690,10 @@ export default function App() {
                     )}
 
                     <Stack direction="row" spacing={2} mt={3}>
-                      <Button 
-                        variant="outlined" 
-                        color="error" 
-                        startIcon={<DeleteIcon />} 
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        startIcon={<DeleteIcon />}
                         onClick={clearSaved}
                         fullWidth
                       >
@@ -750,9 +760,9 @@ export default function App() {
               <Grid container spacing={2}>
                 {Object.entries(stock).map(([itemName, quantity]) => (
                   <Grid item xs={12} sm={6} md={4} lg={3} key={itemName}>
-                    <StockCard 
-                      itemName={itemName} 
-                      quantity={quantity} 
+                    <StockCard
+                      itemName={itemName}
+                      quantity={quantity}
                       onAddStock={handleAddStockClick}
                     />
                   </Grid>
@@ -772,17 +782,17 @@ export default function App() {
       <canvas ref={captureCanvasRef} style={{ display: "none" }} />
 
       {/* Modal de confirmação */}
-      <Dialog 
-        open={modalOpen} 
-        onClose={cancelPending} 
-        maxWidth="sm" 
+      <Dialog
+        open={modalOpen}
+        onClose={cancelPending}
+        maxWidth="sm"
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
-        <DialogTitle sx={{ 
-          bgcolor: "primary.main", 
+        <DialogTitle sx={{
+          bgcolor: "primary.main",
           color: "white",
-          fontWeight: 600 
+          fontWeight: 600
         }}>
           <CheckCircleIcon sx={{ mr: 1, verticalAlign: "middle" }} />
           Objeto Detectado
@@ -791,9 +801,9 @@ export default function App() {
           {pending && (
             <>
               <Box sx={{ textAlign: "center", mb: 2 }}>
-                <Chip 
-                  label={`${(pending.score * 100).toFixed(1)}% de confiança`} 
-                  color="primary" 
+                <Chip
+                  label={`${(pending.score * 100).toFixed(1)}% de confiança`}
+                  color="primary"
                   sx={{ mb: 2 }}
                 />
                 <Typography variant="h6" gutterBottom>
@@ -814,29 +824,29 @@ export default function App() {
                   sx={{ mt: 1 }}
                 />
               </Box>
-              <img 
-                src={pending.image} 
-                alt="snapshot" 
-                style={{ 
-                  width: "100%", 
-                  borderRadius: 12, 
-                  border: `2px solid ${theme.palette.primary.main}` 
-                }} 
+              <img
+                src={pending.image}
+                alt="snapshot"
+                style={{
+                  width: "100%",
+                  borderRadius: 12,
+                  border: `2px solid ${theme.palette.primary.main}`
+                }}
               />
             </>
           )}
         </DialogContent>
         <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button 
-            onClick={cancelPending} 
-            variant="outlined" 
+          <Button
+            onClick={cancelPending}
+            variant="outlined"
             sx={{ borderRadius: 2 }}
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={confirmPending} 
-            variant="contained" 
+          <Button
+            onClick={confirmPending}
+            variant="contained"
             color="primary"
             sx={{ borderRadius: 2 }}
           >
@@ -846,10 +856,10 @@ export default function App() {
       </Dialog>
 
       {/* Modal de estoque */}
-      <Dialog 
-        open={stockModalOpen} 
-        onClose={() => setStockModalOpen(false)} 
-        maxWidth="xs" 
+      <Dialog
+        open={stockModalOpen}
+        onClose={() => setStockModalOpen(false)}
+        maxWidth="xs"
         fullWidth
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
@@ -888,15 +898,15 @@ export default function App() {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
-          <Button 
+          <Button
             onClick={() => setStockModalOpen(false)}
             sx={{ borderRadius: 2 }}
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={addStock} 
-            variant="contained" 
+          <Button
+            onClick={addStock}
+            variant="contained"
             color="primary"
             sx={{ borderRadius: 2 }}
           >
@@ -912,9 +922,9 @@ export default function App() {
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert 
-          severity={snackbar.type} 
-          sx={{ 
+        <Alert
+          severity={snackbar.type}
+          sx={{
             borderRadius: 2,
             fontWeight: 500
           }}

@@ -16,11 +16,19 @@ import {
   ListItemIcon,
   IconButton,
   MenuItem,
-  TextField
+  TextField,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
+  Fab,
+  Tooltip
 } from "@mui/material";
 import {
   BarChart, Bar, PieChart, Pie, LineChart, Line, AreaChart, Area,
-  XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell,
+  XAxis, YAxis, Legend, ResponsiveContainer, Cell,
   CartesianGrid
 } from "recharts";
 import {
@@ -30,7 +38,11 @@ import {
   Warning,
   CalendarToday,
   FilterList,
-  Refresh
+  Refresh,
+  Download,
+  Speed,
+  Sensors,
+  PrecisionManufacturing
 } from "@mui/icons-material";
 
 // Paleta de cores consistente
@@ -38,11 +50,33 @@ const COLORS = ["#1565c0", "#42a5f5", "#81d4fa", "#29b6f6", "#4fc3f7",
                 "#ffb300", "#ffa000", "#ff8f00", "#ef5350", "#f44336", 
                 "#66bb6a", "#4caf50", "#2e7d32"];
 
+// Simulador de dados IoT
+const IoTDataSimulator = {
+  getRealTimeMetrics: () => ({
+    temperature: 22 + Math.random() * 3,
+    humidity: 45 + Math.random() * 10,
+    detectionAccuracy: 0.85 + Math.random() * 0.1,
+    processingSpeed: 120 + Math.random() * 50,
+    cameraStatus: Math.random() > 0.1 ? 'optimal' : 'warning',
+    networkLatency: 25 + Math.random() * 20
+  }),
+
+  getEquipmentHealth: () => [
+    { name: 'Câmera Principal', status: 'optimal', uptime: 99.8 },
+    { name: 'Servidor IA', status: 'optimal', uptime: 99.9 },
+    { name: 'Sensores IoT', status: 'warning', uptime: 95.2 },
+    { name: 'Rede', status: 'optimal', uptime: 99.5 }
+  ]
+};
+
 export default function Dashboard() {
   const [stock, setStock] = useState({});
   const [detections, setDetections] = useState([]);
   const [timeRange, setTimeRange] = useState("7"); // 7, 30, 90, 365
   const [refreshKey, setRefreshKey] = useState(0);
+  const [realTimeData, setRealTimeData] = useState({});
+  const [equipmentHealth, setEquipmentHealth] = useState([]);
+  const [exportDialog, setExportDialog] = useState(false);
 
   // Carregar dados do localStorage
   useEffect(() => {
@@ -52,14 +86,18 @@ export default function Dashboard() {
         const detectionData = JSON.parse(localStorage.getItem("savedDetections") || "[]");
         setStock(stockData);
         setDetections(detectionData);
+        
+        // Atualizar dados IoT em tempo real
+        setRealTimeData(IoTDataSimulator.getRealTimeMetrics());
+        setEquipmentHealth(IoTDataSimulator.getEquipmentHealth());
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
       }
     };
 
     loadData();
-    // Atualizar a cada 30 segundos para dados em tempo real
-    const interval = setInterval(loadData, 30000);
+    // Atualizar a cada 10 segundos para dados em tempo real
+    const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, [refreshKey]);
 
@@ -147,7 +185,12 @@ export default function Dashboard() {
       mostConsumed: mostConsumed ? `${mostConsumed.name} (${mostConsumed.consumo})` : "N/A",
       criticalItems,
       periodDetections: filteredDetections.length,
-      uniqueItems: Object.keys(consumptionByItem).length
+      uniqueItems: Object.keys(consumptionByItem).length,
+      // NOVO: Precisão da IA baseada nas detecções
+      aiAccuracy: filteredDetections.length > 0 
+        ? (filteredDetections.reduce((sum, det) => sum + det.score, 0) / filteredDetections.length * 100).toFixed(1) + '%'
+        : 'N/A',
+      systemUptime: equipmentHealth.reduce((acc, eq) => acc + eq.uptime, 0) / equipmentHealth.length
     };
 
     // Detecções recentes (últimas 5)
@@ -166,7 +209,29 @@ export default function Dashboard() {
       statistics,
       recentDetections
     };
-  }, [stock, detections, timeRange]);
+  }, [stock, detections, timeRange, equipmentHealth]);
+
+  // Função para exportar dados para CSV
+  const exportToCSV = () => {
+    const csvContent = [
+      ['Item', 'Consumo', 'Estoque Atual', 'Data Exportação'],
+      ...consumptionData.map(item => [
+        item.name,
+        item.consumo,
+        item.estoque,
+        new Date().toLocaleDateString()
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportDialog(false);
+  };
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -184,6 +249,40 @@ export default function Dashboard() {
     return null;
   };
 
+  const ExportDialog = () => (
+    <Dialog open={exportDialog} onClose={() => setExportDialog(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        <Download sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Exportar Dados do Dashboard
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Exportar dados completos do dashboard para análise externa?
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Será gerado um arquivo CSV com:
+        </Typography>
+        <List dense>
+          <ListItem>
+            <ListItemText primary="• Consumo por item" />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="• Estoque atual" />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="• Métricas de performance" />
+          </ListItem>
+        </List>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setExportDialog(false)}>Cancelar</Button>
+        <Button onClick={exportToCSV} variant="contained" startIcon={<Download />}>
+          Exportar CSV
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Cabeçalho e Filtros */}
@@ -191,6 +290,37 @@ export default function Dashboard() {
         <Typography variant="h4" fontWeight="bold" color="primary">
           Dashboard Analítico
         </Typography>
+         <Dialog open={exportDialog} onClose={() => setExportDialog(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        <Download sx={{ mr: 1, verticalAlign: 'middle' }} />
+        Exportar Dados do Dashboard
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Exportar dados completos do dashboard para análise externa?
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Será gerado um arquivo CSV com:
+        </Typography>
+        <List dense>
+          <ListItem>
+            <ListItemText primary="• Consumo por item" />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="• Estoque atual" />
+          </ListItem>
+          <ListItem>
+            <ListItemText primary="• Métricas de performance" />
+          </ListItem>
+        </List>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setExportDialog(false)}>Cancelar</Button>
+        <Button onClick={exportToCSV} variant="contained" startIcon={<Download />}>
+          Exportar CSV
+        </Button>
+      </DialogActions>
+    </Dialog>
         
         <Stack direction="row" spacing={2} alignItems="center">
           <Chip 
@@ -210,11 +340,81 @@ export default function Dashboard() {
             <MenuItem value="90">90 dias</MenuItem>
             <MenuItem value="365">1 ano</MenuItem>
           </TextField>
-          <IconButton onClick={() => setRefreshKey(prev => prev + 1)} color="primary">
-            <Refresh />
-          </IconButton>
+          <Tooltip title="Atualizar Dados">
+            <IconButton onClick={() => setRefreshKey(prev => prev + 1)} color="primary">
+              <Refresh />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Exportar Dados">
+            <Button 
+              variant="outlined" 
+              startIcon={<Download />}
+              onClick={() => setExportDialog(true)}
+            >
+              Exportar
+            </Button>
+          </Tooltip>
         </Stack>
       </Box>
+
+      {/* NOVO: Cards de Monitoramento IoT */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <PrecisionManufacturing color="primary" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="primary">
+              {statistics.aiAccuracy}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Precisão da IA
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Speed color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="secondary">
+              {realTimeData.processingSpeed?.toFixed(0) || 0}ms
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Velocidade
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Sensors color="success" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="success.main">
+              {realTimeData.temperature?.toFixed(1) || 0}°C
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Temperatura
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Sensors color="info" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="info.main">
+              {realTimeData.humidity?.toFixed(1) || 0}%
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Umidade
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Speed color="warning" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="warning.main">
+              {realTimeData.networkLatency?.toFixed(0) || 0}ms
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Latência
+            </Typography>
+          </Card>
+        </Grid>
+      </Grid>
 
       {/* Alertas Críticos */}
       {alerts.length > 0 && (
@@ -276,7 +476,6 @@ export default function Dashboard() {
           }}>
             <CardContent>
               <TrendingUp sx={{ fontSize: 40, mb: 1 }} />
-
               <Typography variant="h4" fontWeight="bold">
                 {statistics.avgDailyConsumption}
               </Typography>
@@ -302,7 +501,42 @@ export default function Dashboard() {
         </Grid>
       </Grid>
 
-      {/* Gráficos Principais */}
+      {/* NOVO: Status do Sistema */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12}>
+          <Paper elevation={2} sx={{ p: 2, borderRadius: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <Sensors sx={{ mr: 1 }} />
+              Status do Sistema IoT
+            </Typography>
+            <Grid container spacing={2}>
+              {equipmentHealth.map((equipment, index) => (
+                <Grid item xs={12} sm={6} md={3} key={index}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" fontWeight="medium">
+                      {equipment.name}
+                    </Typography>
+                    <Chip 
+                      label={`${equipment.uptime}%`}
+                      size="small"
+                      color={equipment.status === 'optimal' ? 'success' : 'warning'}
+                      variant="outlined"
+                    />
+                  </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={equipment.uptime}
+                    color={equipment.status === 'optimal' ? 'success' : 'warning'}
+                    sx={{ mt: 1, height: 6, borderRadius: 3 }}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Gráficos Principais (MANTIDOS ORIGINAIS) */}
       <Grid container spacing={4}>
         {/* Consumo por Item */}
         <Grid item xs={12} md={8}>
@@ -451,6 +685,17 @@ export default function Dashboard() {
               
               <Box>
                 <Typography variant="body2" color="text.secondary">
+                  Precisão da IA
+                </Typography>
+                <Typography variant="h6" fontWeight="bold" color="primary">
+                  {statistics.aiAccuracy}
+                </Typography>
+              </Box>
+              
+              <Divider />
+              
+              <Box>
+                <Typography variant="body2" color="text.secondary">
                   Item mais consumido
                 </Typography>
                 <Typography variant="h6" fontWeight="bold">
@@ -472,6 +717,24 @@ export default function Dashboard() {
           </Paper>
         </Grid>
       </Grid>
+
+      {/* Botão Flutuante para Exportação Rápida */}
+      <Tooltip title="Exportar Dados">
+        <Fab
+          color="primary"
+          aria-label="exportar"
+          onClick={() => setExportDialog(true)}
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+          }}
+        >
+          <Download />
+        </Fab>
+      </Tooltip>
+
+      <ExportDialog />
     </Box>
   );
 }
