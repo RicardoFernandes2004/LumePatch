@@ -192,7 +192,7 @@ export default function App() {
 
   const [loadingText, setLoadingText] = useState("Inicializando câmera...");
   const [modalOpen, setModalOpen] = useState(false);
-  const [pending, setPending] = useState(null);
+  const [pending, setPending] = useState([]);
   const [saved, setSaved] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("savedDetections") || "[]");
@@ -249,7 +249,7 @@ export default function App() {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", type: "success" });
 
 
-  
+
   useEffect(() => {
     start();
     return () => stop();
@@ -307,35 +307,31 @@ export default function App() {
 
       try {
         const preds = await modelRef.current.predict(video);
-        const top = preds.reduce(
-          (best, cur) => (cur.probability > (best.probability || 0) ? cur : best),
-          {}
+
+        // filtra todas acima do threshold
+        const ignoredClasses = ["none / outros", "none", "outros"];
+
+        const detected = preds.filter(
+          p =>
+            p.probability > TEACHABLE_PROB_THRESHOLD &&
+            !ignoredClasses.includes(p.className.toLowerCase())
         );
 
-        const label = top.className || "";
-        const prob = top.probability || 0;
+        console.log("detected", detected);
 
-        if (label) {
-          ctx.font = "bold 20px sans-serif";
-          ctx.fillStyle = prob > TEACHABLE_PROB_THRESHOLD ? "#4caf50" : "#ff9800";
-          ctx.fillText(`${label} ${(prob * 100).toFixed(1)}%`, 20, 40);
 
-          // Adicionar borda de detecção
-          ctx.strokeStyle = prob > TEACHABLE_PROB_THRESHOLD ? "#4caf50" : "#ff9800";
-          ctx.lineWidth = 3;
-          ctx.strokeRect(10, 10, overlay.width - 20, overlay.height - 20);
-        }
-
-        if (
-          prob > TEACHABLE_PROB_THRESHOLD &&
-          TARGET_LABELS.includes(label.toLowerCase()) &&
-          !modalOpen
-        ) {
+        if (detected.length > 0 && !modalOpen) {
           const snapshot = takeSnapshot();
-          setPending({ label, score: prob, image: snapshot });
-          setConfirmQty(""); // resetar campo de quantidade quando abrir
+          setPending(
+            detected.map(d => ({
+              label: d.className,
+              score: d.probability,
+              image: snapshot,
+            }))
+          );
           setModalOpen(true);
         }
+
       } catch (e) {
         console.error(e);
       }
@@ -354,47 +350,54 @@ export default function App() {
     ctx.drawImage(video, 0, 0, cap.width, cap.height);
     return cap.toDataURL("image/png");
   }
-
   function confirmPending() {
-    if (!pending) return;
-    const label = pending.label.toLowerCase();
-
-    // Quantidade: se vazio/invalid, usa 1
-    let qty = parseInt(confirmQty, 10);
-    if (isNaN(qty) || qty <= 0) qty = 1;
+    if (!pending || pending.length === 0) return;
 
     // Fechar modal independente do resultado
     const closeModal = () => {
-      setPending(null);
+      setPending([]);
       setModalOpen(false);
       setConfirmQty("");
     };
 
-    if (stock[label] && stock[label] >= qty) {
-      // dá baixa com a quantidade solicitada
-      const updatedStock = { ...stock, [label]: stock[label] - qty };
-      setStock(updatedStock);
-      localStorage.setItem("stock", JSON.stringify(updatedStock));
+    let updatedStock = { ...stock };
+    let newSaved = [...saved];
+    let messages = [];
 
-      const item = {
-        label: pending.label,
-        score: pending.score,
-        image: pending.image,
-        ts: new Date().toISOString(),
-        quantity: qty // Adicionar quantidade ao histórico
-      };
-      const next = [item, ...saved];
-      setSaved(next);
-      localStorage.setItem("savedDetections", JSON.stringify(next));
-      setSnackbar({ open: true, message: `✅ Baixa de ${qty} unidade(s) registrada no estoque de ${label}`, type: "success" });
-      closeModal();
-    } else if (stock[label] && stock[label] > 0 && stock[label] < qty) {
-      setSnackbar({ open: true, message: `❌ Quantidade solicitada (${qty}) maior que o estoque disponível (${stock[label]}).`, type: "error" });
-      closeModal(); // Fechar mesmo com erro
-    } else {
-      setSnackbar({ open: true, message: `❌ Sem estoque disponível de ${label}`, type: "error" });
-      closeModal(); // Fechar mesmo com erro
-    }
+    pending.forEach((det) => {
+      const label = det.label.toLowerCase().replace(/ /g, "_"); // normalizar nomes
+      let qty = parseInt(confirmQty, 10);
+      if (isNaN(qty) || qty <= 0) qty = 1;
+
+      if (updatedStock[label] && updatedStock[label] >= qty) {
+        updatedStock[label] -= qty;
+
+        newSaved.unshift({
+          label: det.label,
+          score: det.score,
+          image: det.image,
+          ts: new Date().toISOString(),
+          quantity: qty,
+        });
+
+        messages.push(`✅ ${qty} unidade(s) baixadas de ${label}`);
+      } else if (updatedStock[label] && updatedStock[label] < qty) {
+        messages.push(`❌ ${label}: quantidade solicitada maior que o estoque disponível`);
+      } else {
+        messages.push(`❌ Sem estoque de ${label}`);
+      }
+    });
+
+    // atualizar estados e localStorage
+    setStock(updatedStock);
+    localStorage.setItem("stock", JSON.stringify(updatedStock));
+
+    setSaved(newSaved);
+    localStorage.setItem("savedDetections", JSON.stringify(newSaved));
+
+    setSnackbar({ open: true, message: messages.join("\n"), type: "info" });
+
+    closeModal();
   }
 
   function cancelPending() {
@@ -798,41 +801,47 @@ export default function App() {
           Objeto Detectado
         </DialogTitle>
         <DialogContent sx={{ p: 3 }}>
-          {pending && (
+          {pending && pending.length > 0 && (
             <>
-              <Box sx={{ textAlign: "center", mb: 2 }}>
-                <Chip
-                  label={`${(pending.score * 100).toFixed(1)}% de confiança`}
-                  color="primary"
-                  sx={{ mb: 2 }}
-                />
-                <Typography variant="h6" gutterBottom>
-                  Confirmar detecção de <strong style={{ textTransform: "capitalize" }}>{pending.label}</strong>?
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Esta ação registrará uma baixa no estoque automaticamente.
-                </Typography>
-                {/* NOVO: campo para quantidade opcional */}
-                <TextField
-                  label="Quantidade (opcional)"
-                  type="number"
-                  value={confirmQty}
-                  onChange={(e) => setConfirmQty(e.target.value)}
-                  fullWidth
-                  inputProps={{ min: 1 }}
-                  helperText="Se deixar em branco, será descontado 1 unidade."
-                  sx={{ mt: 1 }}
-                />
-              </Box>
-              <img
-                src={pending.image}
-                alt="snapshot"
-                style={{
-                  width: "100%",
-                  borderRadius: 12,
-                  border: `2px solid ${theme.palette.primary.main}`
-                }}
-              />
+              {pending.map((p, i) => (
+                <Box sx={{display:'flex', flexDirection:'column', alignItems:'center',justifyContent:'center'}}>
+                  <Box sx={{ textAlign: "center", m: 2 }}>
+                    <Chip
+                      label={`${(p.score * 100).toFixed(1)}% de confiança`}
+                      color="primary"
+                      sx={{ mb: 2 }}
+                    />
+                    <Typography variant="h6" gutterBottom>
+                      Confirmar detecção de <strong style={{ textTransform: "capitalize" }}>{p.label}</strong>?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Esta ação registrará uma baixa no estoque automaticamente.
+                    </Typography>
+                    {/* NOVO: campo para quantidade opcional */}
+                    <TextField
+                      label="Quantidade (opcional)"
+                      type="number"
+                      value={confirmQty}
+                      onChange={(e) => setConfirmQty(e.target.value)}
+                      fullWidth
+                      inputProps={{ min: 1 }}
+                      helperText="Se deixar em branco, será descontado 1 unidade."
+                      sx={{ mt: 1 }}
+                    />
+                  </Box>
+                  <img
+                    src={p.image}
+                    alt="snapshot"
+                    style={{
+                      width: "auto",
+                      maxHeight: '40vh',
+                      borderRadius: 12,
+                      margin:'0 auto',
+                      border: `2px solid ${theme.palette.primary.main}`
+                    }}
+                  />
+                </Box>
+              ))}
             </>
           )}
         </DialogContent>
@@ -854,6 +863,7 @@ export default function App() {
           </Button>
         </DialogActions>
       </Dialog>
+
 
       {/* Modal de estoque */}
       <Dialog

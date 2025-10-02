@@ -357,64 +357,7 @@ export default function Dashboard() {
         </Stack>
       </Box>
 
-      {/* NOVO: Cards de Monitoramento IoT */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ textAlign: 'center', p: 2 }}>
-            <PrecisionManufacturing color="primary" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold" color="primary">
-              {statistics.aiAccuracy}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Precisão da IA
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ textAlign: 'center', p: 2 }}>
-            <Speed color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold" color="secondary">
-              {realTimeData.processingSpeed?.toFixed(0) || 0}ms
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Velocidade
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ textAlign: 'center', p: 2 }}>
-            <Sensors color="success" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold" color="success.main">
-              {realTimeData.temperature?.toFixed(1) || 0}°C
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Temperatura
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ textAlign: 'center', p: 2 }}>
-            <Sensors color="info" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold" color="info.main">
-              {realTimeData.humidity?.toFixed(1) || 0}%
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Umidade
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <Card sx={{ textAlign: 'center', p: 2 }}>
-            <Speed color="warning" sx={{ fontSize: 40, mb: 1 }} />
-            <Typography variant="h5" fontWeight="bold" color="warning.main">
-              {realTimeData.networkLatency?.toFixed(0) || 0}ms
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Latência
-            </Typography>
-          </Card>
-        </Grid>
-      </Grid>
+      
 
       {/* Alertas Críticos */}
       {alerts.length > 0 && (
@@ -499,7 +442,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
-      </Grid>
+     
 
       {/* NOVO: Status do Sistema */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -535,6 +478,7 @@ export default function Dashboard() {
           </Paper>
         </Grid>
       </Grid>
+       </Grid>
 
       {/* Gráficos Principais (MANTIDOS ORIGINAIS) */}
       <Grid container spacing={4}>
@@ -627,10 +571,7 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </Paper>
         </Grid>
-      </Grid>
 
-      {/* Detecções Recentes e Estatísticas Detalhadas */}
-      <Grid container spacing={4} sx={{ mt: 1 }}>
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" gutterBottom>
@@ -665,6 +606,11 @@ export default function Dashboard() {
             </List>
           </Paper>
         </Grid>
+      
+
+      {/* Detecções Recentes e Estatísticas Detalhadas */}
+      <Grid container spacing={4} sx={{ mt: 1 }}>
+        
 
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
@@ -716,8 +662,66 @@ export default function Dashboard() {
             </Stack>
           </Paper>
         </Grid>
+        {/* NOVO: Cards de Monitoramento IoT */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <PrecisionManufacturing color="primary" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="primary">
+              {statistics.aiAccuracy}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Precisão da IA
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Speed color="secondary" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="secondary">
+              {realTimeData.processingSpeed?.toFixed(0) || 0}ms
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Velocidade
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Sensors color="success" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="success.main">
+              {realTimeData.temperature?.toFixed(1) || 0}°C
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Temperatura
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Sensors color="info" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="info.main">
+              {realTimeData.humidity?.toFixed(1) || 0}%
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Umidade
+            </Typography>
+          </Card>
+        </Grid>
+        <Grid item xs={12} sm={6} md={2.4}>
+          <Card sx={{ textAlign: 'center', p: 2 }}>
+            <Speed color="warning" sx={{ fontSize: 40, mb: 1 }} />
+            <Typography variant="h5" fontWeight="bold" color="warning.main">
+              {realTimeData.networkLatency?.toFixed(0) || 0}ms
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Latência
+            </Typography>
+          </Card>
+        </Grid>
       </Grid>
-
+      </Grid>
+</Grid>
       {/* Botão Flutuante para Exportação Rápida */}
       <Tooltip title="Exportar Dados">
         <Fab
