@@ -548,7 +548,9 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Dialog
+     
+
+       <Dialog
         open={!isLoggedIn}
         disableEscapeKeyDown
         PaperProps={{
@@ -570,7 +572,8 @@ export default function App() {
             mb: 2,
           }}
         >
-          Bem-vindo 👋
+          Bem vindo de volta!
+          Faça seu login:
         </DialogTitle>
 
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -618,14 +621,6 @@ export default function App() {
         </DialogActions>
       </Dialog>
 
-      {/* Conteúdo da aplicação (só aparece se logado) */}
-      {isLoggedIn && (
-        <div style={{ padding: 20 }}>
-          <h1>Sistema de Gestão de Produtos</h1>
-          {/* aqui entra todo o código que te gerei antes (lotes, FEFO, uploads, correção etc.) */}
-        </div>
-      )}
-
       <AppBar position="static" elevation={2} sx={{ background: theme.palette.primary.main, mb: 4 }}>
         <Toolbar>
           <CameraAltIcon sx={{ mr: 2 }} />
@@ -657,10 +652,10 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mb: 8 }}>
+      <Container maxWidth="xl" sx={{ mb: 8,display:'flex', flexDirection:'column', alignItems:'center'}}>
         {/* indicadores */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+        <Grid container spacing={3} sx={{ mb: 4,}}>
+          <Grid item xs={12} sm={6} md={3} sx={{}}>
             <Paper elevation={2} sx={{ p: 3, textAlign: "center" }}>
               <Typography variant="h4" color="primary" fontWeight="bold">
                 {Object.values(totals).reduce((a, b) => a + b, 0)}
@@ -703,9 +698,9 @@ export default function App() {
           <Divider />
 
           {/* Tab 0: Detecção */}
-          <Box hidden={activeTab !== 0} sx={{ p: 3 }}>
-            <Grid container spacing={4}>
-              <Grid item xs={12} lg={8}>
+          <Box hidden={activeTab !== 0} sx={{ p: 3,}}>
+            <Grid container spacing={4} sx={{display:'flex', alignItems:'center', justifyContent:'center'}}>
+              <Grid item xs={12} lg={8} sx={{width:'40vw', height:'100%'}}>
                 <Card>
                   <CardContent sx={{ p: 0, position: "relative" }}>
                     <Box sx={{ position: "relative" }}>
@@ -720,7 +715,7 @@ export default function App() {
               </Grid>
 
               <Grid item xs={12} lg={4}>
-                <Card>
+                <Card sx={{width:'40vw'}}>
                   <CardContent>
                     <Box display="flex" alignItems="center" mb={2}>
                       <HistoryIcon color="primary" sx={{ mr: 1 }} />
@@ -767,35 +762,117 @@ export default function App() {
                   </CardContent>
                 </Card>
 
-                {/* Upload zip */}
-                <Card sx={{ mt: 2 }}>
-                  <CardContent>
-                    <Typography variant="subtitle1" fontWeight={600}>Upload .zip para treino</Typography>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Envie uma pasta zipada com fotos para treinos futuros (salvo localmente, limite 5MB).</Typography>
-                    <Input
-                      type="file"
-                      inputProps={{ accept: ".zip" }}
-                      onChange={(e) => {
-                        const f = e.target.files && e.target.files[0];
-                        handleZipUpload(f);
-                        e.target.value = null;
-                      }}
-                    />
-                    {zipUploads.length > 0 && (
-                      <Box mt={2}>
-                        <Typography variant="caption" color="text.secondary">Uploads locais:</Typography>
-                        <List dense>
-                          {zipUploads.map((z, idx) => (
-                            <ListItem key={idx}>
-                              <ListItemText primary={z.name} secondary={new Date(z.ts).toLocaleString()} />
-                            </ListItem>
-                          ))}
-                        </List>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
+
               </Grid>
+
+
+
+              {/* Upload zip */}
+              <Card
+                sx={{
+                  mt: 3,
+                  borderRadius: 4,
+                  boxShadow: "0 6px 18px rgba(0,0,0,0.06)",
+                  p: 2,
+                }}
+              >
+                <CardContent>
+                  <Typography
+                    variant="h6"
+                    fontWeight={700}
+                    sx={{ color: "primary.main", mb: 0.5 }}
+                  >
+                    Upload de Treinamento
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 2 }}
+                  >
+                    Envie uma pasta <b>.zip</b> com imagens para treinos futuros (salvo localmente, limite 5MB).
+                  </Typography>
+
+                  {/* Área de upload parecida com a da imagem */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 2,
+                      p: 2,
+                      border: "2px dashed #ccc",
+                      borderRadius: 3,
+                      justifyContent: "space-between",
+                      bgcolor: "#fafafa",
+                    }}
+                  >
+                    <Button
+                      variant="contained"
+                      component="label"
+                      sx={{
+                        borderRadius: 3,
+                        px: 3,
+                        py: 1,
+                        textTransform: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Selecionar ZIP
+                      <input
+                        type="file"
+                        hidden
+                        accept=".zip"
+                        onChange={(e) => {
+                          const f = e.target.files && e.target.files[0];
+                          handleZipUpload(f);
+                          e.target.value = null;
+                        }}
+                      />
+                    </Button>
+
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary", flex: 1, textAlign: "center" }}
+                    >
+                      {zipUploads.length > 0
+                        ? `${zipUploads.length} arquivo(s) anexado(s)`
+                        : "Nenhum arquivo selecionado"}
+                    </Typography>
+                  </Box>
+
+                  {/* Lista de uploads */}
+                  {zipUploads.length > 0 && (
+                    <Box mt={2}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ mb: 1, display: "block" }}
+                      >
+                        Últimos uploads:
+                      </Typography>
+                      <List dense>
+                        {zipUploads.map((z, idx) => (
+                          <ListItem
+                            key={idx}
+                            sx={{
+                              border: "1px solid #eee",
+                              borderRadius: 2,
+                              mb: 1,
+                              px: 2,
+                            }}
+                          >
+                            <ListItemText
+                              primary={z.name}
+                              secondary={new Date(z.ts).toLocaleString()}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+
+
             </Grid>
           </Box>
 
