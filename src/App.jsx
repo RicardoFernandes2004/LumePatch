@@ -1,63 +1,73 @@
+// App.jsx (ou .tsx) - versão atualizada com FEFO, upload .zip, correção e login simples
 import React, { useRef, useEffect, useState } from "react";
-import * as tf from "@tensorflow/tfjs";
 import * as tmImage from "@teachablemachine/image";
 import {
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
   AppBar,
   Toolbar,
   Typography,
+  Box,
   Container,
+  Grid,
+  Paper,
+  Button,
+  Stack,
   Card,
   CardContent,
-  Button,
+  Chip,
+  IconButton,
+  Tooltip,
+  MenuItem,
+  TextField,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
-  Avatar,
-  Stack,
-  CssBaseline,
-  TextField,
-  MenuItem,
-  Snackbar,
-  Alert,
-  Box,
-  Grid,
-  Paper,
-  Chip,
-  IconButton,
   Tabs,
   Tab,
   Divider,
-  Tooltip,
-  Fab
+  List,
+  ListItem,
+  ListItemAvatar,
+  Avatar,
+  ListItemText,
+  Snackbar,
+  Alert,
+  Fab,
+  Input,
 } from "@mui/material";
-import { ThemeProvider, createTheme, alpha } from "@mui/material/styles";
-import DeleteIcon from "@mui/icons-material/Delete";
-import SaveAltIcon from "@mui/icons-material/SaveAlt";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import AddIcon from "@mui/icons-material/Add";
-import CameraAltIcon from "@mui/icons-material/CameraAlt";
-import AnalyticsIcon from "@mui/icons-material/Analytics";
-import HistoryIcon from "@mui/icons-material/History";
-import WarningIcon from "@mui/icons-material/Warning";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import {
+  CameraAlt as CameraAltIcon,
+  Inventory as InventoryIcon,
+  Analytics as AnalyticsIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  SaveAlt as SaveAltIcon,
+  CheckCircle as CheckCircleIcon,
+  History as HistoryIcon,
+  Login as LoginIcon,
+  UploadFile as UploadFileIcon,
+  Edit as EditIcon,
+} from "@mui/icons-material";
+
+// (Assumo que você já tem Dashboard component)
 import Dashboard from "./Dashboard";
 
 const TEACHABLE_MODEL_URL = "/teachable/";
 const TARGET_LABELS = [
-  "soro",
+  "soro_fisiológico_0,9%",
   "mascara",
+  "caixa_de_máscara_10_unidades",
+  "luva_latex_m_10_unidades",
   "seringa",
   "luvas",
   "alcool",
   "termometro",
   "avental",
   "agulha",
-  "tubo de ensaio",
+  "tubo_ensaio",
   "pipeta",
   "centrifuga",
   "microscopio",
@@ -77,119 +87,65 @@ const theme = createTheme({
   shape: { borderRadius: 16 },
   typography: {
     fontFamily: "'Inter', 'Roboto', sans-serif",
-    h4: {
-      fontWeight: 700,
-    },
-    h6: {
-      fontWeight: 600,
-    },
+    h4: { fontWeight: 700 },
+    h6: { fontWeight: 600 },
   },
 });
 
-// Componente para exibir o nível de estoque com cores
-const StockLevelIndicator = ({ quantity, lowStockThreshold = 10 }) => {
-  const getColor = () => {
-    if (quantity === 0) return "error";
-    if (quantity <= lowStockThreshold) return "warning";
-    return "success";
-  };
+// Helper: get timestamp ISO
+const nowISO = () => new Date().toISOString();
 
-  const getIcon = () => {
-    if (quantity === 0) return <WarningIcon />;
-    if (quantity <= lowStockThreshold) return <WarningIcon />;
-    return <CheckCircleIcon />;
-  };
+// UTIL: migrate old simple stock (label -> qty) to lots structure
+function migrateStock(oldStockSimple) {
+  const stockLots = {};
+  Object.entries(oldStockSimple).forEach(([label, qty]) => {
+    stockLots[label] = [
+      {
+        lotId: `initial_${Date.now()}`,
+        qty: Number(qty || 0),
+        ts: new Date().toISOString(),
+      },
+    ];
+  });
+  return stockLots;
+}
 
-  return (
-    <Chip
-      icon={getIcon()}
-      label={`${quantity} un`}
-      color={getColor()}
-      variant={quantity === 0 ? "filled" : "outlined"}
-      size="small"
-      sx={{ fontWeight: 600 }}
-    />
-  );
-};
+// UTIL: sum lots to total qty
+function totalQty(lots = []) {
+  return lots.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+}
 
-// Componente de card de estoque personalizado
-const StockCard = ({ itemName, quantity, onAddStock }) => {
-  const isLowStock = quantity <= 10;
-  const isOutOfStock = quantity === 0;
-
-  return (
-    <Card
-      sx={{
-        height: 120,
-        background: isOutOfStock
-          ? `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`
-          : isLowStock
-            ? `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`
-            : `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
-        border: `2px solid ${isOutOfStock
-          ? alpha(theme.palette.error.main, 0.3)
-          : isLowStock
-            ? alpha(theme.palette.warning.main, 0.3)
-            : alpha(theme.palette.success.main, 0.3)
-          }`,
-        transition: "all 0.3s ease",
-        "&:hover": {
-          transform: "translateY(-4px)",
-          boxShadow: 4,
-        },
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        p: 2,
-      }}
-    >
-      <Box>
-        <Typography
-          variant="subtitle2"
-          sx={{
-            fontWeight: 600,
-            color: isOutOfStock ? "error.main" : "text.primary",
-            textTransform: "capitalize",
-            mb: 1
-          }}
-        >
-          {itemName.replace(/_/g, " ")}
-        </Typography>
-        <StockLevelIndicator quantity={quantity} />
-      </Box>
-      <Tooltip title={`Adicionar estoque para ${itemName}`}>
-        <IconButton
-          size="small"
-          onClick={() => onAddStock(itemName)}
-          sx={{
-            alignSelf: "flex-end",
-            bgcolor: "primary.main",
-            color: "white",
-            "&:hover": { bgcolor: "primary.dark" }
-          }}
-        >
-          <AddIcon />
-        </IconButton>
-      </Tooltip>
-    </Card>
-  );
-};
-
-function TabPanel({ children, value, index, ...other }) {
-  return (
-    <div hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
+// UTIL: consume FEFO from lots, returns {success: boolean, consumedLots: [{lotId, qtyConsumed}], updatedLots}
+function consumeFEFO(lots = [], desiredQty) {
+  let remaining = desiredQty;
+  const sorted = [...lots].sort((a, b) => new Date(a.ts) - new Date(b.ts)); // oldest first
+  const consumed = [];
+  const updated = sorted.map((l) => ({ ...l }));
+  for (let i = 0; i < updated.length && remaining > 0; i++) {
+    const available = Number(updated[i].qty || 0);
+    if (available <= 0) continue;
+    const take = Math.min(available, remaining);
+    updated[i].qty = available - take;
+    consumed.push({ lotId: updated[i].lotId, qty: take, ts: updated[i].ts });
+    remaining -= take;
+  }
+  if (remaining > 0) {
+    return { success: false, consumedLots: [], updatedLots: lots };
+  }
+  // filter zero qty lots
+  const cleaned = updated.filter((l) => Number(l.qty) > 0);
+  return { success: true, consumedLots: consumed, updatedLots: cleaned };
 }
 
 export default function App() {
+  // video & model refs
   const videoRef = useRef(null);
   const overlayRef = useRef(null);
   const captureCanvasRef = useRef(null);
   const modelRef = useRef(null);
   const loopRef = useRef(false);
 
+  // UI state
   const [loadingText, setLoadingText] = useState("Inicializando câmera...");
   const [modalOpen, setModalOpen] = useState(false);
   const [pending, setPending] = useState([]);
@@ -201,54 +157,62 @@ export default function App() {
     }
   });
 
-  // NOVO: quantidade a confirmar (opcional)
   const [confirmQty, setConfirmQty] = useState("");
-
-  // Estado do estoque
-  const [stock, setStock] = useState(() => {
+  // stock now by-lots: { label: [ {lotId, qty, ts}, ... ] }
+  const [stockLots, setStockLots] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("stock")) || {
-        soro: 20,
-        mascara: 50,
-        seringa: 100,
-        luvas: 200,
-        alcool: 30,
-        termometro: 15,
-        avental: 40,
-        agulha: 120,
-        tubo_ensaio: 300,
-        pipeta: 80,
-        centrifuga: 5,
-        microscopio: 3,
-        ataduras: 60,
-      };
+      const v = localStorage.getItem("stockLots");
+      if (v) return JSON.parse(v);
+      // if there's old "stock" simple, migrate
+      const old = localStorage.getItem("stock");
+      if (old) {
+        try {
+          const o = JSON.parse(old);
+          const migrated = migrateStock(o);
+          localStorage.setItem("stockLots", JSON.stringify(migrated));
+          return migrated;
+        } catch {
+          return {};
+        }
+      }
+      // default initial (create one lot per item)
+      const init = {};
+      TARGET_LABELS.forEach((label) => {
+        init[label] = [{ lotId: `initial_${label}`, qty: 20, ts: new Date().toISOString() }];
+      });
+      return init;
     } catch {
-      return {
-        soro: 20,
-        mascara: 50,
-        seringa: 100,
-        luvas: 200,
-        alcool: 30,
-        termometro: 15,
-        avental: 40,
-        agulha: 120,
-        tubo_ensaio: 300,
-        pipeta: 80,
-        centrifuga: 5,
-        microscopio: 3,
-        ataduras: 60,
-      };
+      return {};
     }
   });
 
+  // stock modal fields (add lote)
   const [stockModalOpen, setStockModalOpen] = useState(false);
-  const [stockItem, setStockItem] = useState("soro");
-  const [stockQty, setStockQty] = useState(0);
+  const [stockLabel, setStockLabel] = useState(TARGET_LABELS[0]);
+  const [stockLotId, setStockLotId] = useState("");
+  const [stockLotQty, setStockLotQty] = useState(0);
+  const [stockLotDate, setStockLotDate] = useState(""); // ISO date string
+
   const [activeTab, setActiveTab] = useState(0);
 
   const [snackbar, setSnackbar] = useState({ open: false, message: "", type: "success" });
 
 
+
+  // zip uploads (metadata saved)
+  const [zipUploads, setZipUploads] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("zipUploads") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  // correction dialog
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionIndex, setCorrectionIndex] = useState(null);
+  const [correctionLabel, setCorrectionLabel] = useState("");
+  const [correctionQty, setCorrectionQty] = useState(1);
 
   useEffect(() => {
     start();
@@ -300,26 +264,17 @@ export default function App() {
     const video = videoRef.current;
     const overlay = overlayRef.current;
     const ctx = overlay.getContext("2d");
-
     async function frame() {
       if (!loopRef.current) return;
       ctx.clearRect(0, 0, overlay.width, overlay.height);
-
       try {
         const preds = await modelRef.current.predict(video);
-
-        // filtra todas acima do threshold
         const ignoredClasses = ["none / outros", "none", "outros"];
-
         const detected = preds.filter(
           p =>
             p.probability > TEACHABLE_PROB_THRESHOLD &&
             !ignoredClasses.includes(p.className.toLowerCase())
         );
-
-        console.log("detected", detected);
-
-
         if (detected.length > 0 && !modalOpen) {
           const snapshot = takeSnapshot();
           setPending(
@@ -331,11 +286,9 @@ export default function App() {
           );
           setModalOpen(true);
         }
-
       } catch (e) {
         console.error(e);
       }
-
       setTimeout(() => {
         if (loopRef.current) requestAnimationFrame(frame);
       }, 500);
@@ -350,53 +303,60 @@ export default function App() {
     ctx.drawImage(video, 0, 0, cap.width, cap.height);
     return cap.toDataURL("image/png");
   }
+
+  // Confirm pending detections: FEFO consumption
   function confirmPending() {
     if (!pending || pending.length === 0) return;
 
-    // Fechar modal independente do resultado
     const closeModal = () => {
       setPending([]);
       setModalOpen(false);
       setConfirmQty("");
     };
 
-    let updatedStock = { ...stock };
-    let newSaved = [...saved];
-    let messages = [];
+    let updatedLots = { ...stockLots };
+    const newSaved = [...saved];
+    const messages = [];
 
     pending.forEach((det) => {
-      const label = det.label.toLowerCase().replace(/ /g, "_"); // normalizar nomes
+      const normalized = det.label.toLowerCase().replace(/ /g, "_");
       let qty = parseInt(confirmQty, 10);
       if (isNaN(qty) || qty <= 0) qty = 1;
 
-      if (updatedStock[label] && updatedStock[label] >= qty) {
-        updatedStock[label] -= qty;
+      const lotsForLabel = updatedLots[normalized] || [];
+      const totalAvailable = totalQty(lotsForLabel);
 
-        newSaved.unshift({
-          label: det.label,
-          score: det.score,
-          image: det.image,
-          ts: new Date().toISOString(),
-          quantity: qty,
-        });
-
-        messages.push(`✅ ${qty} unidade(s) baixadas de ${label}`);
-      } else if (updatedStock[label] && updatedStock[label] < qty) {
-        messages.push(`❌ ${label}: quantidade solicitada maior que o estoque disponível`);
+      if (totalAvailable >= qty) {
+        // consume FEFO
+        const { success, consumedLots, updatedLots: newLots } = consumeFEFO(lotsForLabel, qty);
+        if (!success) {
+          messages.push(`❌ ${normalized}: erro ao consumir lotes`);
+        } else {
+          updatedLots[normalized] = newLots;
+          const savedEntry = {
+            label: det.label,
+            score: det.score,
+            image: det.image,
+            ts: new Date().toISOString(),
+            quantity: qty,
+            consumedLots, // informação de quais lotes foram consumidos
+            user: username || "unknown",
+          };
+          newSaved.unshift(savedEntry);
+          messages.push(`✅ ${qty} unidade(s) baixadas de ${normalized}`);
+        }
       } else {
-        messages.push(`❌ Sem estoque de ${label}`);
+        messages.push(`❌ ${normalized}: estoque insuficiente (${totalAvailable} dispon.)`);
       }
     });
 
-    // atualizar estados e localStorage
-    setStock(updatedStock);
-    localStorage.setItem("stock", JSON.stringify(updatedStock));
+    setStockLots(updatedLots);
+    localStorage.setItem("stockLots", JSON.stringify(updatedLots));
 
     setSaved(newSaved);
     localStorage.setItem("savedDetections", JSON.stringify(newSaved));
 
     setSnackbar({ open: true, message: messages.join("\n"), type: "info" });
-
     closeModal();
   }
 
@@ -412,70 +372,285 @@ export default function App() {
     setSnackbar({ open: true, message: "Histórico de detecções limpo", type: "info" });
   }
 
-  function addStock() {
-    const qty = parseInt(stockQty, 10);
-    if (!qty || qty <= 0) return;
-    const updatedStock = { ...stock, [stockItem]: (stock[stockItem] || 0) + qty };
-    setStock(updatedStock);
-    localStorage.setItem("stock", JSON.stringify(updatedStock));
-    setSnackbar({ open: true, message: `📦 Adicionado ${qty} unidades ao estoque de ${stockItem}`, type: "success" });
-    setStockQty(0);
+  // Add a lot
+  function addLot() {
+    const qty = parseInt(stockLotQty, 10);
+    if (!qty || qty <= 0) {
+      setSnackbar({ open: true, message: "Quantidade inválida", type: "error" });
+      return;
+    }
+    const lotId = stockLotId && stockLotId.trim() !== "" ? stockLotId.trim() : `lot_${Date.now()}`;
+    const ts = stockLotDate ? new Date(stockLotDate).toISOString() : new Date().toISOString();
+
+    const updated = { ...stockLots };
+    if (!updated[stockLabel]) updated[stockLabel] = [];
+    updated[stockLabel] = [{ lotId, qty, ts }, ...updated[stockLabel]];
+    setStockLots(updated);
+    localStorage.setItem("stockLots", JSON.stringify(updated));
+    setSnackbar({ open: true, message: `📦 Lote ${lotId} adicionado em ${stockLabel}`, type: "success" });
+    // reset
+    setStockLotQty(0);
+    setStockLotId("");
+    setStockLotDate("");
     setStockModalOpen(false);
   }
 
-  const handleAddStockClick = (item) => {
-    setStockItem(item);
-    setStockQty(10); // Valor padrão
-    setStockModalOpen(true);
+  // Export saved to file
+  function exportSaved() {
+    const blob = new Blob([JSON.stringify(saved, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "detections.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ZIP upload handler (converts to base64 if < limit)
+  const ZIP_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
+  function handleZipUpload(file) {
+    if (!file) return;
+    if (file.size > ZIP_SIZE_LIMIT) {
+      setSnackbar({
+        open: true,
+        message: "Arquivo muito grande para salvar localmente (>5MB). Envie para um backend.",
+        type: "warning",
+      });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const base64 = e.target.result;
+      const meta = {
+        name: file.name,
+        size: file.size,
+        ts: new Date().toISOString(),
+        data: base64,
+      };
+      const updated = [meta, ...zipUploads];
+      setZipUploads(updated);
+      localStorage.setItem("zipUploads", JSON.stringify(updated));
+      setSnackbar({ open: true, message: `📥 ${file.name} carregado para treino`, type: "success" });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Login handling
+
+
+  function doLogout() {
+    set("");
+    localStorage.removeItem("username");
+    setSnackbar({ open: true, message: "Logout realizado", type: "info" });
+  }
+
+  // Correction flow: open correction for an existing saved detection
+  function openCorrection(i) {
+    const entry = saved[i];
+    if (!entry) return;
+    setCorrectionIndex(i);
+    setCorrectionLabel(entry.label);
+    setCorrectionQty(entry.quantity || 1);
+    setCorrectionOpen(true);
+  }
+  function applyCorrection() {
+    if (correctionIndex === null) return;
+    const index = correctionIndex;
+    const previous = saved[index];
+    const oldQty = previous.quantity || 0;
+    const newQty = parseInt(correctionQty, 10) || 0;
+    const newLabel = correctionLabel;
+    const updatedSaved = [...saved];
+
+    // If label changed or qty increased, we need to adjust stock/backstock accordingly.
+    // Simple approach:
+    // - If newQty < oldQty: we should add back (reponha) the difference into a new "correction" lot with ts=now.
+    // - If newQty > oldQty: try to consume FEFO from stock for the difference; if not enough, notify user.
+    // - If label changed: we treat it as if previous detection removed old item; we'll revert oldQty to old label, and then apply newQty to new label.
+    (async () => {
+      const updatedLots = { ...stockLots };
+
+      // revert old removal: add back oldQty to old label as a correction lot
+      const oldLabelNorm = (previous.label || "").toLowerCase().replace(/ /g, "_");
+      if (!updatedLots[oldLabelNorm]) updatedLots[oldLabelNorm] = [];
+      updatedLots[oldLabelNorm] = [
+        {
+          lotId: `correction_restock_${Date.now()}`,
+          qty: oldQty,
+          ts: new Date().toISOString(),
+        },
+        ...updatedLots[oldLabelNorm],
+      ];
+
+      // now try to consume newQty from newLabel
+      const newLabelNorm = (newLabel || "").toLowerCase().replace(/ /g, "_");
+      if (!updatedLots[newLabelNorm]) updatedLots[newLabelNorm] = [];
+
+      // attempt to consume newQty
+      const { success, consumedLots, updatedLots: newUpdatedForLabel } = consumeFEFO(
+        updatedLots[newLabelNorm],
+        newQty
+      );
+
+      if (!success) {
+        setSnackbar({
+          open: true,
+          message: `Não há estoque suficiente para aplicar a correção (label ${newLabel})`,
+          type: "error",
+        });
+        // revert the revert? we already added restock — ok leave it as reponha, but inform user
+      } else {
+        updatedLots[newLabelNorm] = newUpdatedForLabel;
+        // update saved entry
+        updatedSaved[index] = {
+          ...previous,
+          label: newLabel,
+          quantity: newQty,
+          correctedBy: currentUser || "unknown",
+          correctedAt: new Date().toISOString(),
+          consumedLots, // new consumption
+        };
+        setSaved(updatedSaved);
+        localStorage.setItem("savedDetections", JSON.stringify(updatedSaved));
+        setStockLots(updatedLots);
+        localStorage.setItem("stockLots", JSON.stringify(updatedLots));
+        setSnackbar({ open: true, message: "Correção aplicada", type: "success" });
+      }
+    })();
+
+    setCorrectionOpen(false);
+    setCorrectionIndex(null);
+  }
+
+  // UI helpers: totals, low stock etc.
+  const allLabels = TARGET_LABELS;
+  const totals = {};
+  allLabels.forEach((label) => {
+    totals[label] = totalQty(stockLots[label] || []);
+  });
+  const lowStockItems = Object.entries(totals).filter(([_, qty]) => qty <= 10);
+  const outOfStockItems = Object.entries(totals).filter(([_, qty]) => qty === 0);
+
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Função de login simples (mock)
+  const handleLogin = () => {
+    if (username) {
+      setIsLoggedIn(true);
+    } else {
+      alert("Usuário ou senha incorretos!");
+    }
   };
 
-  // Calcular estatísticas do estoque
-  const lowStockItems = Object.entries(stock).filter(([_, qty]) => qty <= 10);
-  const outOfStockItems = Object.entries(stock).filter(([_, qty]) => qty === 0);
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-
-      {/* Header */}
-      <AppBar
-        position="static"
-        elevation={2}
-        sx={{
-          background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-          mb: 4,
-          width: '98vw'
+      <Dialog
+        open={!isLoggedIn}
+        disableEscapeKeyDown
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            p: 3,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+            minWidth: 380,
+            bgcolor: "background.paper",
+          },
         }}
       >
+        <DialogTitle
+          sx={{
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: "1.5rem",
+            color: "primary.main",
+            mb: 2,
+          }}
+        >
+          Bem-vindo 👋
+        </DialogTitle>
+
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Usuário"
+            fullWidth
+            variant="outlined"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+          />
+          <TextField
+            margin="dense"
+            label="Senha"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2 } }}
+          />
+        </DialogContent>
+
+        <DialogActions sx={{ justifyContent: "center", mt: 1 }}>
+          <Button
+            onClick={handleLogin}
+            variant="contained"
+            color="primary"
+            sx={{
+              borderRadius: 3,
+              px: 4,
+              py: 1,
+              fontWeight: 600,
+              textTransform: "none",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              ":hover": {
+                boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
+              },
+            }}
+          >
+            Entrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Conteúdo da aplicação (só aparece se logado) */}
+      {isLoggedIn && (
+        <div style={{ padding: 20 }}>
+          <h1>Sistema de Gestão de Produtos</h1>
+          {/* aqui entra todo o código que te gerei antes (lotes, FEFO, uploads, correção etc.) */}
+        </div>
+      )}
+
+      <AppBar position="static" elevation={2} sx={{ background: theme.palette.primary.main, mb: 4 }}>
         <Toolbar>
           <CameraAltIcon sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            Sistema de Controle Hospitalar
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+            LumePath - DASA
           </Typography>
 
-          <Stack direction="row" spacing={2}>
-            <Button
-              color="inherit"
-              startIcon={<InventoryIcon />}
-              onClick={() => setActiveTab(1)}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                "&:hover": { backgroundColor: alpha("#fff", 0.1) }
-              }}
-            >
+          <Stack direction="row" spacing={1}>
+            {username ? (
+              <>
+                <Typography variant="body2" sx={{ alignSelf: "center", mr: 1 }}>{username}</Typography>
+                <Button color="inherit" onClick={doLogout} startIcon={<LoginIcon />}>
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <Button color="inherit" onClick={!isLoggedIn} startIcon={<LoginIcon />}>
+                Login
+              </Button>
+            )}
+
+            <Button color="inherit" startIcon={<InventoryIcon />} onClick={() => setActiveTab(1)}>
               Estoque
             </Button>
-            <Button
-              color="inherit"
-              startIcon={<AnalyticsIcon />}
-              onClick={() => setActiveTab(2)}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                "&:hover": { backgroundColor: alpha("#fff", 0.1) }
-              }}
-            >
+            <Button color="inherit" startIcon={<AnalyticsIcon />} onClick={() => setActiveTab(2)}>
               Dashboard
             </Button>
           </Stack>
@@ -483,207 +658,100 @@ export default function App() {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ mb: 8 }}>
-        {/* Indicadores de status */}
-        <Grid container spacing={3} sx={{
-          mb: 4, display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-        }}>
+        {/* indicadores */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper
-              elevation={2}
-              sx={{
-                p: 3,
-                textAlign: "center",
-                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-
-              }}
-            >
+            <Paper elevation={2} sx={{ p: 3, textAlign: "center" }}>
               <Typography variant="h4" color="primary" fontWeight="bold">
-                {Object.values(stock).reduce((a, b) => a + b, 0)}
+                {Object.values(totals).reduce((a, b) => a + b, 0)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total em Estoque
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Total em Estoque</Typography>
             </Paper>
           </Grid>
-          <Grid item xs={12} sm={6} md={3} >
-            <Paper
-              elevation={2}
-              sx={{
-                p: 3,
-                textAlign: "center",
-                background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.1)} 0%, ${alpha(theme.palette.warning.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
-              }}
-            >
+          <Grid item xs={12} sm={6} md={3}>
+            <Paper elevation={2} sx={{ p: 3, textAlign: "center" }}>
               <Typography variant="h4" color="warning.main" fontWeight="bold">
                 {lowStockItems.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Itens com Baixo Estoque
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Itens com Baixo Estoque</Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper
-              elevation={2}
-              sx={{
-                p: 3,
-                textAlign: "center",
-                background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
-              }}
-            >
+            <Paper elevation={2} sx={{ p: 3, textAlign: "center" }}>
               <Typography variant="h4" color="error.main" fontWeight="bold">
                 {outOfStockItems.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Itens Esgotados
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Itens Esgotados</Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
-            <Paper
-              elevation={2}
-              sx={{
-                p: 3,
-                textAlign: "center",
-                background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, ${alpha(theme.palette.success.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
-              }}
-            >
+            <Paper elevation={2} sx={{ p: 3, textAlign: "center" }}>
               <Typography variant="h4" color="success.main" fontWeight="bold">
                 {saved.length}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Detecções Realizadas
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Detecções Realizadas</Typography>
             </Paper>
           </Grid>
         </Grid>
 
-        {/* Abas principais */}
         <Paper elevation={2} sx={{ borderRadius: 3, overflow: "hidden" }}>
-          <Tabs
-            value={activeTab}
-            onChange={(_, newValue) => setActiveTab(newValue)}
-            variant="fullWidth"
-            sx={{
-              background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.9)} 100%)`,
-              "& .MuiTab-root": { fontWeight: 600, py: 2 },
-
-            }}
-          >
+          <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="fullWidth">
             <Tab icon={<CameraAltIcon />} label="Detecção em Tempo Real" />
             <Tab icon={<InventoryIcon />} label="Gestão de Estoque" />
             <Tab icon={<AnalyticsIcon />} label="Dashboard Analítico" />
           </Tabs>
-
           <Divider />
 
-          {/* Tab 1: Detecção em Tempo Real */}
-          <TabPanel value={activeTab} index={0}>
-            <Grid container spacing={4} sx={{ width: '100%', margin: 0 }}>
-              <Grid item xs={12} lg={8} sx={{ width: '50%' }}>
-                <Card elevation={3} sx={{ borderRadius: 3, overflow: "hidden", width: "100%" }}>
+          {/* Tab 0: Detecção */}
+          <Box hidden={activeTab !== 0} sx={{ p: 3 }}>
+            <Grid container spacing={4}>
+              <Grid item xs={12} lg={8}>
+                <Card>
                   <CardContent sx={{ p: 0, position: "relative" }}>
                     <Box sx={{ position: "relative" }}>
-                      <video
-                        ref={videoRef}
-                        style={{
-                          width: "100%",
-                          height: "400px",
-                          objectFit: "cover",
-                          display: "block"
-                        }}
-                        playsInline
-                        muted
-                      />
-                      <canvas
-                        ref={overlayRef}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          height: "100%",
-                          pointerEvents: "none",
-                        }}
-                      />
-                      <Box
-                        sx={{
-                          position: "absolute",
-                          top: 16,
-                          left: 16,
-                          bgcolor: alpha("#000", 0.7),
-                          color: "white",
-                          px: 2,
-                          py: 1,
-                          borderRadius: 2,
-                          backdropFilter: "blur(10px)"
-                        }}
-                      >
-                        <Typography variant="body2">
-                          {loadingText}
-                        </Typography>
+                      <video ref={videoRef} style={{ width: "100%", height: 400, objectFit: "cover" }} playsInline muted />
+                      <canvas ref={overlayRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }} />
+                      <Box sx={{ position: "absolute", top: 16, left: 16, bgcolor: "rgba(0,0,0,0.6)", color: "white", px: 2, py: 1, borderRadius: 2 }}>
+                        <Typography variant="body2">{loadingText}</Typography>
                       </Box>
                     </Box>
                   </CardContent>
                 </Card>
               </Grid>
 
-              <Grid item xs={12} lg={8} sx={{ width: '47%' }} >
-                <Card elevation={3} sx={{ borderRadius: 3, height: "100%" }}>
+              <Grid item xs={12} lg={4}>
+                <Card>
                   <CardContent>
-                    <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
+                    <Box display="flex" alignItems="center" mb={2}>
                       <HistoryIcon color="primary" sx={{ mr: 1 }} />
-                      <Typography variant="h6" fontWeight="bold">
-                        Histórico de Detecções
-                      </Typography>
+                      <Typography variant="h6">Histórico de Detecções</Typography>
                     </Box>
 
                     {saved.length === 0 ? (
-                      <Box sx={{ textAlign: "center", py: 4 }}>
+                      <Box textAlign="center" py={4}>
                         <CameraAltIcon sx={{ fontSize: 48, color: "text.secondary", mb: 2 }} />
-                        <Typography variant="body2" color="text.secondary">
-                          Nenhuma detecção realizada ainda.
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Aponte a câmera para os objetos hospitalares
-                        </Typography>
+                        <Typography variant="body2" color="text.secondary">Nenhuma detecção realizada ainda.</Typography>
                       </Box>
                     ) : (
                       <List sx={{ maxHeight: 320, overflow: "auto" }}>
                         {saved.map((s, i) => (
-                          <ListItem key={i} divider>
+                          <ListItem key={i} divider secondaryAction={
+                            <Stack direction="row" spacing={1}>
+                              <Tooltip title="Corrigir detecção">
+                                <IconButton edge="end" onClick={() => openCorrection(i)}><EditIcon /></IconButton>
+                              </Tooltip>
+                            </Stack>
+                          }>
                             <ListItemAvatar>
-                              <Avatar
-                                variant="rounded"
-                                src={s.image}
-                                alt={s.label}
-                                sx={{ width: 60, height: 45 }}
-                              />
+                              <Avatar variant="rounded" src={s.image} alt={s.label} sx={{ width: 60, height: 45 }} />
                             </ListItemAvatar>
                             <ListItemText
-                              primary={
-                                <Typography fontWeight="600" textTransform="capitalize">
-                                  {s.label}
-                                </Typography>
-                              }
+                              primary={<Typography fontWeight={600} textTransform="capitalize">{s.label}</Typography>}
                               secondary={
                                 <Box>
-                                  <Typography variant="body2" color="text.secondary">
-                                    {new Date(s.ts).toLocaleString()}
-                                  </Typography>
-                                  <Chip
-                                    label={`${(s.score * 100).toFixed(1)}%`}
-                                    size="small"
-                                    color="primary"
-                                    variant="outlined"
-                                  />
+                                  <Typography variant="body2" color="text.secondary">{new Date(s.ts).toLocaleString()} — {s.user || "—"}</Typography>
+                                  <Chip label={`${(s.score * 100).toFixed(1)}%`} size="small" sx={{ mt: 0.5 }} />
+                                  <Typography variant="caption" display="block">Qtd: {s.quantity}</Typography>
                                 </Box>
                               }
                             />
@@ -692,268 +760,176 @@ export default function App() {
                       </List>
                     )}
 
-                    <Stack direction="row" spacing={2} mt={3}>
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        startIcon={<DeleteIcon />}
-                        onClick={clearSaved}
-                        fullWidth
-                      >
-                        Limpar Histórico
-                      </Button>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        startIcon={<SaveAltIcon />}
-                        onClick={() => {
-                          const blob = new Blob([JSON.stringify(saved, null, 2)], { type: "application/json" });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "detections.json";
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        fullWidth
-                      >
-                        Exportar
-                      </Button>
+                    <Stack direction="row" spacing={2} mt={2}>
+                      <Button variant="outlined" color="error" startIcon={<DeleteIcon />} fullWidth onClick={clearSaved}>Limpar Histórico</Button>
+                      <Button variant="contained" color="primary" startIcon={<SaveAltIcon />} fullWidth onClick={exportSaved}>Exportar</Button>
                     </Stack>
+                  </CardContent>
+                </Card>
+
+                {/* Upload zip */}
+                <Card sx={{ mt: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" fontWeight={600}>Upload .zip para treino</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>Envie uma pasta zipada com fotos para treinos futuros (salvo localmente, limite 5MB).</Typography>
+                    <Input
+                      type="file"
+                      inputProps={{ accept: ".zip" }}
+                      onChange={(e) => {
+                        const f = e.target.files && e.target.files[0];
+                        handleZipUpload(f);
+                        e.target.value = null;
+                      }}
+                    />
+                    {zipUploads.length > 0 && (
+                      <Box mt={2}>
+                        <Typography variant="caption" color="text.secondary">Uploads locais:</Typography>
+                        <List dense>
+                          {zipUploads.map((z, idx) => (
+                            <ListItem key={idx}>
+                              <ListItemText primary={z.name} secondary={new Date(z.ts).toLocaleString()} />
+                            </ListItem>
+                          ))}
+                        </List>
+                      </Box>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
             </Grid>
-          </TabPanel>
+          </Box>
 
-          {/* Tab 2: Gestão de Estoque */}
-          <TabPanel value={activeTab} index={1}>
-            <Box sx={{ mb: 4 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                <Typography variant="h5" fontWeight="bold">
-                  Gestão de Estoque
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => setStockModalOpen(true)}
-                  sx={{ borderRadius: 2 }}
-                >
-                  Adicionar Estoque
-                </Button>
-              </Box>
-
-              {/* Alertas de estoque */}
-              {(lowStockItems.length > 0 || outOfStockItems.length > 0) && (
-                <Box sx={{ mb: 3 }}>
-                  {outOfStockItems.length > 0 && (
-                    <Alert severity="error" sx={{ mb: 1, borderRadius: 2 }}>
-                      <strong>{outOfStockItems.length} item(s) esgotado(s):</strong> {outOfStockItems.map(([name]) => name).join(", ")}
-                    </Alert>
-                  )}
-                  {lowStockItems.length > 0 && (
-                    <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                      <strong>{lowStockItems.length} item(s) com estoque baixo:</strong> {lowStockItems.map(([name]) => name).join(", ")}
-                    </Alert>
-                  )}
-                </Box>
-              )}
-
-              {/* Grid de estoque */}
-              <Grid container spacing={2}>
-                {Object.entries(stock).map(([itemName, quantity]) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={itemName}>
-                    <StockCard
-                      itemName={itemName}
-                      quantity={quantity}
-                      onAddStock={handleAddStockClick}
-                    />
-                  </Grid>
-                ))}
-              </Grid>
+          {/* Tab 1: Estoque (Lotes) */}
+          <Box hidden={activeTab !== 1} sx={{ p: 3 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h5" fontWeight="bold">Gestão de Estoque por Lotes (FEFO)</Typography>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setStockModalOpen(true)}>Adicionar Lote</Button>
             </Box>
-          </TabPanel>
 
-          {/* Tab 3: Dashboard Analítico */}
-          <TabPanel value={activeTab} index={2}>
+            {(lowStockItems.length > 0 || outOfStockItems.length > 0) && (
+              <Box mb={3}>
+                {outOfStockItems.length > 0 && (<Alert severity="error" sx={{ mb: 1 }}>{outOfStockItems.length} item(s) esgotado(s): {outOfStockItems.map(([n]) => n).join(", ")}</Alert>)}
+                {lowStockItems.length > 0 && (<Alert severity="warning">{lowStockItems.length} item(s) com estoque baixo: {lowStockItems.map(([n]) => n).join(", ")}</Alert>)}
+              </Box>
+            )}
+
+            <Grid container spacing={2}>
+              {allLabels.map((label) => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={label} >
+                  {(stockLots[label] || []).slice(0, 4).map((l, idx) => (
+                    <Card sx={{
+                      p: 2, backgroundColor: l.qty > 10 ? '#f2fcf0ff' : '#fdf1f1ff', display: 'flex', flexDirection: 'column', alignItems: 'center'
+                    }}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center" flexDirection={"column"} mb={1}>
+                        <Button size="small" variant="contained" sx={{ mb: 2, backgroundColor: '#378dffff' }} onClick={() => {
+                          setStockLabel(label);
+                          setStockLotQty(10);
+                          setStockLotId("");
+                          setStockLotDate("");
+                          setStockModalOpen(true);
+
+                        }}>+ Adicionar Lote</Button>
+                        <Typography fontWeight={700} textTransform="capitalize">{label.replace(/_/g, " ")}</Typography>
+                      </Box>
+                      <Typography variant="h6" sx={{ mb: 1 }}>{totals[label]} </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>Unidades</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+
+                        <List dense>
+                          <ListItem key={l.lotId + idx} >
+                            <ListItemText primary={`Lote: ${l.lotId} — ${l.qty} un`} secondary={new Date(l.ts).toLocaleString()} />
+                          </ListItem>
+                          {((stockLots[label] || []).length > 4) && <ListItem><ListItemText primary={`+ ${(stockLots[label] || []).length - 4} lotes`} /></ListItem>}
+                        </List>
+                      </Box>
+                    </Card>
+                  ))}
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+
+          {/* Tab 2: Dashboard */}
+          <Box hidden={activeTab !== 2} sx={{ p: 3 }}>
             <Dashboard />
-          </TabPanel>
+          </Box>
         </Paper>
       </Container>
 
-      {/* Canvas escondido */}
+      {/* Hidden canvas */}
       <canvas ref={captureCanvasRef} style={{ display: "none" }} />
 
-      {/* Modal de confirmação */}
-      <Dialog
-        open={modalOpen}
-        onClose={cancelPending}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{
-          bgcolor: "primary.main",
-          color: "white",
-          fontWeight: 600
-        }}>
-          <CheckCircleIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-          Objeto Detectado
+      {/* Modal confirmação de detecção */}
+      <Dialog open={modalOpen} onClose={cancelPending} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: "primary.main", color: "white", fontWeight: 600 }}>
+          <CheckCircleIcon sx={{ mr: 1 }} /> Objeto Detectado
         </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          {pending && pending.length > 0 && (
-            <>
-              {pending.map((p, i) => (
-                <Box sx={{display:'flex', flexDirection:'column', alignItems:'center',justifyContent:'center'}}>
-                  <Box sx={{ textAlign: "center", m: 2 }}>
-                    <Chip
-                      label={`${(p.score * 100).toFixed(1)}% de confiança`}
-                      color="primary"
-                      sx={{ mb: 2 }}
-                    />
-                    <Typography variant="h6" gutterBottom>
-                      Confirmar detecção de <strong style={{ textTransform: "capitalize" }}>{p.label}</strong>?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      Esta ação registrará uma baixa no estoque automaticamente.
-                    </Typography>
-                    {/* NOVO: campo para quantidade opcional */}
-                    <TextField
-                      label="Quantidade (opcional)"
-                      type="number"
-                      value={confirmQty}
-                      onChange={(e) => setConfirmQty(e.target.value)}
-                      fullWidth
-                      inputProps={{ min: 1 }}
-                      helperText="Se deixar em branco, será descontado 1 unidade."
-                      sx={{ mt: 1 }}
-                    />
-                  </Box>
-                  <img
-                    src={p.image}
-                    alt="snapshot"
-                    style={{
-                      width: "auto",
-                      maxHeight: '40vh',
-                      borderRadius: 12,
-                      margin:'0 auto',
-                      border: `2px solid ${theme.palette.primary.main}`
-                    }}
-                  />
-                </Box>
-              ))}
-            </>
-          )}
+        <DialogContent dividers>
+          {pending && pending.length > 0 && pending.map((p, i) => (
+            <Box key={i} textAlign="center" mb={2}>
+              <Chip label={`${(p.score * 100).toFixed(1)}% de confiança`} color="primary" sx={{ mb: 1 }} />
+              <Typography variant="h6">Confirmar detecção de <strong style={{ textTransform: "capitalize" }}>{p.label}</strong>?</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Esta ação registrará uma baixa no estoque (FEFO)</Typography>
+              <TextField
+                label="Quantidade (opcional)"
+                type="number"
+                value={confirmQty}
+                onChange={(e) => setConfirmQty(e.target.value)}
+                fullWidth
+                inputProps={{ min: 1 }}
+                helperText="Se deixar vazio, desconta 1 unidade"
+                sx={{ my: 1 }}
+              />
+              <img src={p.image} alt="snapshot" style={{ maxHeight: "40vh", borderRadius: 12, border: `2px solid ${theme.palette.primary.main}` }} />
+            </Box>
+          ))}
         </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 1 }}>
-          <Button
-            onClick={cancelPending}
-            variant="outlined"
-            sx={{ borderRadius: 2 }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={confirmPending}
-            variant="contained"
-            color="primary"
-            sx={{ borderRadius: 2 }}
-          >
-            Confirmar Baixa
-          </Button>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={cancelPending} variant="outlined">Cancelar</Button>
+          <Button onClick={confirmPending} variant="contained" color="primary">Confirmar Baixa</Button>
         </DialogActions>
       </Dialog>
 
-
-      {/* Modal de estoque */}
-      <Dialog
-        open={stockModalOpen}
-        onClose={() => setStockModalOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          <AddIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-          Adicionar ao Estoque
-        </DialogTitle>
-        <DialogContent sx={{ p: 3 }}>
-          <TextField
-            select
-            label="Item"
-            value={stockItem}
-            onChange={(e) => setStockItem(e.target.value)}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-          >
-            {TARGET_LABELS.map((item) => (
-              <MenuItem key={item} value={item}>
-                <Box sx={{ textTransform: "capitalize" }}>{item.replace(/_/g, " ")}</Box>
-              </MenuItem>
-            ))}
+      {/* Modal adicionar lote */}
+      <Dialog open={stockModalOpen} onClose={() => setStockModalOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Adicionar Lote</DialogTitle>
+        <DialogContent>
+          <TextField select label="Item" value={stockLabel} onChange={(e) => setStockLabel(e.target.value)} fullWidth margin="normal">
+            {TARGET_LABELS.map((t) => <MenuItem key={t} value={t}>{t.replace(/_/g, " ")}</MenuItem>)}
           </TextField>
-          <TextField
-            label="Quantidade"
-            type="number"
-            value={stockQty}
-            onChange={(e) => setStockQty(e.target.value)}
-            fullWidth
-            margin="normal"
-            variant="outlined"
-            InputProps={{ inputProps: { min: 1 } }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-            Estoque atual: <strong>{stock[stockItem] || 0} unidades</strong>
-          </Typography>
+          <TextField label="ID do Lote (opcional)" value={stockLotId} onChange={(e) => setStockLotId(e.target.value)} fullWidth margin="normal" />
+          <TextField label="Quantidade" type="number" value={stockLotQty} onChange={(e) => setStockLotQty(e.target.value)} fullWidth margin="normal" inputProps={{ min: 1 }} />
+          <TextField type="datetime-local" label="Data de Entrada (opcional)" value={stockLotDate} onChange={(e) => setStockLotDate(e.target.value)} fullWidth margin="normal" InputLabelProps={{ shrink: true }} />
         </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
-          <Button
-            onClick={() => setStockModalOpen(false)}
-            sx={{ borderRadius: 2 }}
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={addStock}
-            variant="contained"
-            color="primary"
-            sx={{ borderRadius: 2 }}
-          >
-            Adicionar
-          </Button>
+        <DialogActions>
+          <Button onClick={() => setStockModalOpen(false)}>Cancelar</Button>
+          <Button onClick={addLot} variant="contained">Adicionar Lote</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar de feedback */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      >
-        <Alert
-          severity={snackbar.type}
-          sx={{
-            borderRadius: 2,
-            fontWeight: 500
-          }}
-        >
-          {snackbar.message}
-        </Alert>
+
+
+      {/* Correction modal */}
+      <Dialog open={correctionOpen} onClose={() => setCorrectionOpen(false)}>
+        <DialogTitle>Corrigir Detecção</DialogTitle>
+        <DialogContent>
+          <TextField label="Label" fullWidth value={correctionLabel} onChange={(e) => setCorrectionLabel(e.target.value)} margin="normal" />
+          <TextField label="Quantidade" type="number" fullWidth value={correctionQty} onChange={(e) => setCorrectionQty(e.target.value)} margin="normal" inputProps={{ min: 0 }} />
+          <Typography variant="caption" color="text.secondary">Se aumentar a quantidade, o sistema tentará consumir do estoque; se diminuir, irá repor via um lote de correção.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCorrectionOpen(false)}>Cancelar</Button>
+          <Button onClick={applyCorrection} variant="contained">Aplicar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
+        <Alert severity={snackbar.type} sx={{ borderRadius: 2 }}>{snackbar.message}</Alert>
       </Snackbar>
 
-      {/* Botão flutuante para voltar ao topo */}
-      <Fab
-        color="primary"
-        aria-label="voltar ao topo"
-        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        sx={{
-          position: "fixed",
-          bottom: 24,
-          right: 24,
-        }}
-      >
+      {/* Floating action: voltar topo */}
+      <Fab color="primary" aria-label="voltar" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} sx={{ position: "fixed", bottom: 24, right: 24 }}>
         <AddIcon sx={{ transform: "rotate(45deg)" }} />
       </Fab>
     </ThemeProvider>

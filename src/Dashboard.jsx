@@ -50,6 +50,7 @@ const COLORS = ["#1565c0", "#42a5f5", "#81d4fa", "#29b6f6", "#4fc3f7",
                 "#ffb300", "#ffa000", "#ff8f00", "#ef5350", "#f44336", 
                 "#66bb6a", "#4caf50", "#2e7d32"];
 
+                
 // Simulador de dados IoT
 const IoTDataSimulator = {
   getRealTimeMetrics: () => ({
@@ -511,8 +512,40 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
+        
+        {/* Tendência Temporal */}
+        <Grid item xs={12} sx={{minWidth:'450px'}}>
+          <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }} >
+            <Typography variant="h6" gutterBottom>
+              Tendência de Consumo Diário
+            </Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip content={<CustomTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="consumo" 
+                  stroke="#1565c0" 
+                  fill="rgba(21, 101, 192, 0.2)" 
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="consumo" 
+                  stroke="#1565c0" 
+                  strokeWidth={2}
+                  dot={{ fill: '#1565c0', strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
         {/* Distribuição do Estoque */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={4} sx={{minWidth:'400px'}}>
           <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
             <Typography variant="h6" gutterBottom>
               Distribuição do Estoque
@@ -541,36 +574,6 @@ export default function Dashboard() {
           </Paper>
         </Grid>
 
-        {/* Tendência Temporal */}
-        <Grid item xs={12}>
-          <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Tendência de Consumo Diário
-            </Typography>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="consumo" 
-                  stroke="#1565c0" 
-                  fill="rgba(21, 101, 192, 0.2)" 
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="consumo" 
-                  stroke="#1565c0" 
-                  strokeWidth={2}
-                  dot={{ fill: '#1565c0', strokeWidth: 2 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid>
 
         <Grid item xs={12} md={6}>
           <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
